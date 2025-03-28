@@ -55,6 +55,26 @@ from jax.tree_util import tree_leaves
 PRNGKey = Any
 
 
+# TODO: NSA
+# need three mapping strategies C = {cmp, slc, win}:
+#   - K_cmp, V_cmp = Compressed blocks of K, V
+#       L = seq len
+#       d = stride length
+#       l = block length
+#           d < l to avoid info fragmentation
+#       n_blocks = floor((L - l) / d)
+#       phi = MLP of L x l x n_blocks
+#   - Shapes: K = B x L X D_k, K_cmp = B x n_blocks x l x D_k
+
+#   - K_slc, V_slc = Selected top n blocks of K, Vs
+#   - K_win, V_win = Local sliding window of K, V
+#       w = window size
+
+#   attn_output = summation strategy c from C Attn(q, K_c, V_c) * g_c
+#   g_c = gate score for each strategy c - [0, 1]
+#       MLP + sigmoid
+
+
 @dataclass(frozen=True)
 class Hparams:
     d_model: int

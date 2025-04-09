@@ -23,6 +23,7 @@ from jax import lax
 from jax.sharding import PartitionSpec
 import jax.numpy as jnp
 import math
+import subprocess
 from input_loader import (
     FlatTokensParams,
     HuggingFaceDataParams,
@@ -372,6 +373,7 @@ class TrainingHparams:
     tokens: TokenBatchParams
     seed: int
     queue: Optional[str] = None
+    use_gpu: Optional[bool] = False
 
 
 @pytree_dataclass
@@ -605,11 +607,40 @@ def main_contained(config, logger):
             training_io.log(step, logger, output)
 
 
+def get_branch_name():
+    return subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+
+
+def get_overrides():
+    """Get override strings from Hydra config, excluding certain overrides."""
+    overrides = hydra.core.hydra_config.HydraConfig.get()["job"]["override_dirname"]
+    ignore_overrides = ["training.queue", "flat_tokens.filespec"]
+    return [
+        f"{override.lstrip('+').split('=')[0].split('.')[-1]}={override.split('=')[1]}"
+        for override in overrides.split(",")
+        if override and override.lstrip("+").split("=")[0] not in ignore_overrides
+    ]
+
+
 @hydra.main(config_path="configs", version_base=None)
 def main(config):
     config = jax_extra.make_dataclass_from_dict(Config, config)
     if config.training.queue:
         task = Task.init(project_name="testing", task_name=config.paths.model_name)
+        if config.training.use_gpu:
+            task.set_packages("requirements-gpu.txt")
+        else:
+            task.set_packages("requirements-tpu.txt")
+        git_branch_name = get_branch_name()
+        override_tags = get_overrides()
+        task.add_tags([git_branch_name] + override_tags)
+
         logger = task.get_logger()
         task.execute_remotely(queue_name=config.training.queue)
         task.launch_multi_node(config.num_hosts, wait=True)

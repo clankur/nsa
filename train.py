@@ -79,12 +79,13 @@ class Hparams:
         """Convert reuse_kv_map to kv_cache_indices format.
 
         reuse_kv_map is a list of (layer_idx, cache_idx) pairs that specify which layers
-        share which KV cache indices. For example:
-        ((0, 0), (1, 0), (2, 1), (3, 1)) means:
+        share which KV cache indices. ie).
+        reuse_kv_map = ((0, 0), (1, 0), (2, 1), (3, 1)) means:
         - Layer 0 uses cache index 0
         - Layer 1 uses cache index 0 (shares with layer 0)
         - Layer 2 uses cache index 1
         - Layer 3 uses cache index 1 (shares with layer 2)
+        and this will translate to (0, 0, 1, 1)
         """
         kv_indices = [0] * self.layers  # Initialize with zeros
         for layer_idx, cache_idx in self.reuse_kv_map:
